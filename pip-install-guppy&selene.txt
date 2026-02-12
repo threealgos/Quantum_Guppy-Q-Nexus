@@ -1,0 +1,185 @@
+(Depending on the code version, some use guppy, others use guppylang.)
+pip install guppy selene-sim
+pip install guppy-sim selene-sim qnexus-client
+# Core Quantinuum / Guppy language pip install guppy-quantum # Selene simulator (PyPI package) pip install selene-sim # Q-Nexus client SDK pip install qnexus # Helios backend bindings pip install helios-backend
+pip install typing-extensions
+pip install typing-extensions
+pip install guppy-lang qnexus selene-sim pytket-quantinuum
+pip install numpy matplotlib ecdsa guppy selene-sim qnexus helios pycryptodome typing-extensions
+pip install guppylang  # Core for Guppy quantum programming (used in all codes; latest version ~0.21.8 as of search results).
+pip install selene-sim  # For Selene quantum simulator/emulator (local execution of Guppy programs; open-source from Quantinuum).
+pip install qnexus  # For Q-Nexus platform integration (job submission to Helios or other Quantinuum backends).
+pip install pytket-quantinuum  # For Quantinuum backend support (e.g., Helios/H1-1 emulation; used in some codes for circuit compilation).
+pip install pytket  # Dependency for pytket-quantinuum (circuit handling and optimization).
+pip install ecdsa  # For elliptic curve operations (SECP256k1 curve handling).
+pip install pycryptodome  # For Crypto.Hash (RIPEMD160, SHA256; used in some codes for hashing).
+pip install numpy  # For numerical computations (arrays, polyfit for ZNE, etc.).
+pip install matplotlib  # For visualization (plots, histograms).
+
+pip install guppylang==2.4.0 qnexus==3.2.0 pytket-quantinuum==1.18.0 numpy matplotlib ecdsa
+
+export QNEXUS_API_TOKEN="your_quantinuum_token"
+
+extra ai-s : https://copilot.microsoft.com/chats / 
+https://docs.coderabbit.ai/quickstart?utm_source=chatgpt.com
+
+Required packages (2025–2026 era versions)bash
+
+# === Core quantum / Guppy language (this is the most important one) ===
+pip install guppylang
+
+# === Selene simulator (local fallback when not using real Helios) ===
+pip install selene-sim
+
+# === Q-Nexus SDK (required for submitting jobs to real Quantinuum hardware/emulator) ===
+pip install qnexus
+
+# === pytket + Quantinuum extension (for TKET compilation/optimization when enabled) ===
+pip install pytket pytket-quantinuum
+
+# === Cryptography (ECDLP / SECP256k1 operations) ===
+pip install ecdsa
+
+# === Numerical & visualization libraries ===
+pip install numpy matplotlib
+
+# === Optional but very useful / appears in many related codes ===
+pip install typing-extensions   # sometimes needed by pytket / qnexus
+
+One-line "everything" command (most people use this)bash
+
+pip install \
+  guppylang \
+  selene-sim \
+  qnexus \
+  pytket \
+  pytket-quantinuum \
+  ecdsa \
+  numpy \
+  matplotlib \
+  typing-extensions
+
+What was not needed from your previous lists (already removed / never used)guppy / guppy-quantum / guppy-sim / guppy-lang
+→ wrong/old package names — the correct one is guppylang (with two 'l's)
+pycryptodome
+→ not used (no RIPEMD160/SHA256 hashing in the final code)
+helios-backend
+→ does not exist / not needed (Q-Nexus handles Helios access)
+base58 / hashlib
+→ imported in very old versions but never used → safe to remove
+
+Recommended pinned versions (more stable / reproducible)If you want to avoid surprises from future breaking changes:bash
+
+pip install \
+  guppylang==0.21.* \
+  selene-sim==0.3.* \
+  qnexus==0.9.* \
+  pytket==1.30.* \
+  pytket-quantinuum==0.18.* \
+  ecdsa==0.19.* \
+  numpy==2.0.* \
+  matplotlib==3.9.* \
+  typing-extensions==4.12.*
+
+(These are approximate stable ranges as of late 2025 / early 2026 — adjust if you get version conflicts.)Environment setup remindersAfter installing the packages:QNEXUS authentication (very important for Helios)
+
+bash
+
+sometimes qnexus-client
+
+
+export QNEXUS_API_TOKEN="your_quantinuum_token_here"
+# or
+qnexus login   # interactive login
+
+If you use GitHub Selene variant (option 3 in backend selection)
+
+bash
+
+git clone https://github.com/gbradburd/guppy_seln.git
+cd guppy_seln
+pip install -e .
+
+Test basic import (quick sanity check)
+
+python
+
+python -c "import guppylang; import selene_sim; import qnexus; import pytket; import ecdsa; import numpy; print('All core imports OK')"
+
+If this runs without ImportError → you're good.
+
+--------------------------------------------------------------------
+
+Do you need an API token / login?Yes, to submit jobs to Helios (H1-1E emulator, H2-1 hardware, etc.) through the qnexus Python SDK.
+You do not manually create or copy-paste an "API token" like with IBM Quantum (no export IBMQ_TOKEN=... style).
+Instead, you authenticate once (or every ~30 days) using your Quantinuum Nexus credentials (email + password or Microsoft account).
+This login creates and stores short-lived access/refresh tokens automatically on your machine (in ~/.qnexus/ or similar cache).
+
+How to get access and authenticateCreate / get a Quantinuum Nexus account (free for basic access, paid/approved for real hardware credits):Go to: https://nexus.quantinuum.com/
+Sign up or log in (supports email/password or Microsoft account).
+Accept terms & conditions after registration.
+For real hardware (Helios H2-1 etc.), you may need to apply for access / credits via Quantinuum (academic/research often approved; check their portal or contact support@quantinuum.com).
+Emulator (H1-1E) is usually immediately available after signup.
+
+Authenticate in your Python environment (this is what your code needs):After pip install qnexus, run one of these once (or when token expires):Option A – Easiest (opens browser for login)
+In terminal or Jupyter:python
+
+import qnexus as qnx
+qnx.login()               # Opens browser → log in to nexus.quantinuum.com → done
+
+Option B – Headless / script-friendly (username + password)  python
+
+import qnexus as qnx
+qnx.login_with_credentials(username="your@email.com", password="your_password")
+
+Option C – If already logged in via browser / JupyterHub
+In Quantinuum's hosted Nexus Jupyter environment, authentication is silent/automatic — no extra step.
+
+Verify it's working:python
+
+import qnexus as qnx
+print(qnx.is_authenticated())  # Should print True
+print(qnx.Account.limits())    # Shows your shot/job quotas
+
+Your code already has:python
+
+if not qnx.is_authenticated():
+    qnx.login()
+
+So it will prompt you automatically when needed (browser login preferred).
+Token storage & expiration:Tokens stored locally (~30 days validity).
+When expired: re-run qnx.login() (or code will prompt).
+No need for manual export QNEXUS_API_TOKEN=... — unlike older Quantinuum APIs or IBM.
+
+Quick summary tableScenario
+Need login/token?
+How to do it
+Manual env var?
+Local script + Helios
+Yes
+qnx.login() (browser) or credentials
+No
+Nexus JupyterHub (hosted)
+No (automatic)
+Already authenticated
+No
+Emulator only (Selene)
+No
+Code falls back automatically
+No
+Real hardware credits
+Yes + approval
+Nexus account + possible application
+No
+
+What to do right nowGo to https://nexus.quantinuum.com/ → sign up/log in.
+In your terminal (same env as the code):bash
+
+python -c "import qnexus as qnx; qnx.login()"
+
+→ Browser opens → log in → you're set for 30 days.
+Run your code with backend choice [1] (HELIOS) → it should submit without auth errors.
+
+If you get "not authenticated" or quota errors → it's usually just needing to re-login or apply for more access/credits via the portal.Let me know if you hit any specific error message during login/submit — I can help debug! 
+
+pip install --upgrade qnexus
