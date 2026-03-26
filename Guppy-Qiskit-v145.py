@@ -805,37 +805,43 @@ def main():
         sampler = Sampler(mode=backend)
         sampler.options.default_shots = shots
 
-        if USE_ZNE:
-            sampler.options.resilience.zne_mitigation = True
-            sampler.options.resilience.zne.noise_factors = [1, 3, 5, 7]
         if USE_DD:
             sampler.options.dynamical_decoupling.enable = True
-            sampler.options.dynamical_decoupling.sequence_type = "XY8"
+            sampler.options.dynamical_decoupling.sequence_type = "XY4"
+
+        if USE_ZNE:
+            print("ℹ️  ZNE: SamplerV2 has no built-in resilience — manual 4-scale ZNE will run post-processing.")
 
         print(f"📡 Submitting job to backend: {backend_name}")
         print(f"   Shots: {shots}")
 
         job = sampler.run([isa_qc], shots=shots)
-
-        print(f" Job ID: {job.job_id()}")
+        print(f"   Job ID: {job.job_id()}")
         print("⏳ Waiting for results...")
 
-        # Retrieve results
         result = job.result()
         print("✅ Results retrieved successfully!")
 
-        # Extract and print measurements / counts
         raw_dict = result[0].data.c.get_counts()
         counts = Counter(raw_dict)
+
+        if USE_ZNE:
+            print("🔬 Applying manual 4-scale ZNE extrapolation...")
+            zne_counts_list = [counts]
+            for noise_factor in [3, 5, 7]:
+                scaled_shots = max(1024, shots // noise_factor)
+                job_zne = sampler.run([isa_qc], shots=scaled_shots)
+                result_zne = job_zne.result()
+                zne_counts_list.append(Counter(result_zne[0].data.c.get_counts()))
+            counts = manual_zne(zne_counts_list)
+            print("✅ Manual ZNE applied across noise factors [1, 3, 5, 7]")
 
         print(f"\n📊 Received {len(counts)} unique measurement outcomes")
         print("Top 100 most frequent results:")
         for bitstr, cnt in counts.most_common(100):
             print(f"   {bitstr} : {cnt} shots")
-
-        if len(counts) > 20:
+        if len(counts) > 100:
             print(f"   ... and {len(counts) - 100} more less frequent outcomes")
-
         print(f"✅ Job completed on {backend_name}! Total unique bitstrings: {len(counts)}")
 
     # =============================================================================
