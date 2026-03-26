@@ -64,7 +64,7 @@ ORDER = SECP256k1.order
 CURVE = CurveFp(P, A, B)
 
 PRESETS = {
-    "21": {"bits": 21, "start": 0x90000, "pub": "037d14b19a95fe400b88b0debe31ecc3c0ec94daea90d13057bde89c5f8e6fc25c", "shots": 16384},
+    "21": {"bits": 21, "start": 0x90000, "pub": "037d14b19a95fe400b88b0debe31ecc3c0ec94daea90d13057bde89c5f8e6fc25c", "shots": 8192},
     "25": {"bits": 25, "start": 0xE00000, "pub": "038ad4f423459430771c0f12a24df181ed0da5142ec676088031f28a21e86ea06d", "shots": 16384},
     "135": {"bits": 135, "start": 0x400000000000000000000000000000000, "pub": "02145d2611c823a396ef6712ce0f712f09b9b4f3135e3e0aa3230fb9b6d08d1e16", "shots": 65536},
 }
@@ -796,10 +796,10 @@ def main():
 
         backend_name = backend.name if hasattr(backend, 'name') else str(backend)
         print(f"📡 Using backend: {backend_name}")
-
+        print(f"📡 Submitting job to backend: {backend_name}")
         pm = generate_preset_pass_manager(optimization_level=3, backend=backend)
         isa_qc = pm.run(qc)
-
+        print(f"   Shots: {shots}")
         sampler = Sampler(mode=backend)
         sampler.options.default_shots = shots
 
@@ -811,9 +811,12 @@ def main():
 
         job = sampler.run([isa_qc], shots=shots)
         print(f" Job ID: {job.job_id()}")
+        print("⏳ Waiting for results...")
         result = job.result()
+        print("✅ Results retrieved successfully!")
         raw_dict = result[0].data.c.get_counts()
         counts = Counter(raw_dict)
+        print(f"\n📊 Received {len(counts)} unique measurement outcomes")
 
         if USE_ZNE:
             print("🔬 Applying manual 4-scale ZNE...")
@@ -824,9 +827,15 @@ def main():
             counts = manual_zne(zne_list)
 
         print(f"\n📊 Received {len(counts)} unique measurement outcomes")
+        print("Top 100 most frequent results:")
         for bitstr, cnt in counts.most_common(100):
             print(f"   {bitstr} : {cnt} shots")
+        
+        if len(counts) > 20:
+            print(f"   ... and {len(counts) - 100} more less frequent outcomes")
 
+        print(f"✅ Job completed on {backend_name}! Total unique bitstrings: {len(counts)}")
+            
     # =============================================================================
     # SHARED POST-PROCESSING
     # =============================================================================
