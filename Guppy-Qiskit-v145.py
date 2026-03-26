@@ -137,19 +137,19 @@ def manual_zne(counts_list):
 # =============================================================================
 # ERROR MITIGATION
 # =============================================================================
-def apply_surface_code_correction(qc: QuantumCircuit, data_qubits, ancillas):
+def apply_surface_code_correction(qc: QuantumCircuit, data_qubits, ancillas, ancilla_cbits):
     if len(data_qubits) < 4 or len(ancillas) < 8:
         return
     for i in range(4):
         qc.h(ancillas[i])
         qc.cx(data_qubits[i], ancillas[i])
         qc.h(ancillas[i])
-        qc.measure(ancillas[i], ancillas[i])
+        qc.measure(ancillas[i], ancilla_cbits[i])
     for i in range(4):
         qc.h(data_qubits[i])
         qc.cx(ancillas[i+4], data_qubits[i])
         qc.h(data_qubits[i])
-        qc.measure(ancillas[i], ancillas[i])
+        qc.measure(ancillas[i], ancilla_cbits[i])
     for a in ancillas:
         qc.reset(a)
 
@@ -167,11 +167,11 @@ def decode_repetition(qc, ancillas, logical_qubit):
     qc.cx(ancillas[1], logical_qubit)
     qc.ccx(ancillas[0], ancillas[1], logical_qubit)
 
-def flag_stabilizer_check(qc: QuantumCircuit, ctrl, flag):
+def flag_stabilizer_check(qc: QuantumCircuit, ctrl, flag, flag_cbit):
     qc.h(flag)
     qc.cx(ctrl, flag)
     qc.h(flag)
-    qc.measure(flag, flag)
+    qc.measure(flag, flag_cbit)
 
 # =============================================================================
 # LATTICE + POST-PROCESSING
@@ -704,14 +704,22 @@ def main():
             flag_qubits = 1 if use_flags else 0
             surface_anc = 8 if use_surface else 0
             total_qubits = bits * rep + 4 + flag_qubits + surface_anc
+
             qr = QuantumRegister(total_qubits, "q")
             cr = ClassicalRegister(bits, "c")
-            qc = QuantumCircuit(qr, cr)
+            flag_cr = ClassicalRegister(1, "flag_c") if use_flags else None
+            surface_cr = ClassicalRegister(8, "surf_c") if use_surface else None
 
-            state = qr[:bits*rep]
+            regs = [qr, cr]
+            if flag_cr: regs.append(flag_cr)
+            if surface_cr: regs.append(surface_cr)
+
+            qc = QuantumCircuit(*regs)
+
+            state        = qr[:bits*rep]
             ctrl_encoded = qr[bits*rep : bits*rep + 3]
-            anc = qr[bits*rep + 3]
-            flag = qr[bits*rep + 4] if use_flags else None
+            anc          = qr[bits*rep + 3]
+            flag         = qr[bits*rep + 4] if use_flags else None
             surface_start = bits*rep + 4 + flag_qubits
 
             if use_repetition:
@@ -734,9 +742,14 @@ def main():
                 ft_draper_modular_adder(qc, ctrl_encoded[0], state[logical_start:logical_start+rep], anc, combined, 1 << bits)
 
                 if use_flags:
-                    flag_stabilizer_check(qc, ctrl_encoded[0], flag)
+                    flag_stabilizer_check(qc, ctrl_encoded[0], flag, flag_cr[0])
                 if use_surface:
-                    apply_surface_code_correction(qc, state[logical_start:logical_start+4], qr[surface_start:surface_start+8])
+                    apply_surface_code_correction(
+                        qc,
+                        state[logical_start:logical_start+4],
+                        qr[surface_start:surface_start+8],
+                        surface_cr[:8]
+                    )
 
                 for c in range(3 if use_repetition else 1):
                     qc.h(ctrl_encoded[c])
