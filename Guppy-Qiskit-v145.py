@@ -805,7 +805,7 @@ def main():
 
         if USE_DD:
             sampler.options.dynamical_decoupling.enable = True
-            sampler.options.dynamical_decoupling.sequence_type = "XY8"
+            sampler.options.dynamical_decoupling.sequence_type = "XY4"
         if USE_ZNE:
             print("ℹ️ ZNE: manual post-processing will be applied")
 
