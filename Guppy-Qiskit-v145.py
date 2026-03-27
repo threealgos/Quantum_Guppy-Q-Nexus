@@ -845,19 +845,19 @@ def main():
         all_measurements.extend(process_measurement(val, bits, ORDER) * cnt)
 
     filtered = [m for m in all_measurements if math.gcd(m, ORDER) == 1]
-
+    print("Extracting multiple continued-fraction convergents...")
     multi_cands = []
     for m in filtered[:200]:
         frac = Fraction(m, 1 << bits).limit_denominator(ORDER)
         if frac.denominator != 0:
             k_cand = (frac.numerator * pow(frac.denominator, -1, ORDER)) % ORDER
             multi_cands.extend([k_cand, (k_cand+1)%ORDER, (k_cand-1)%ORDER])
-
+    print("Applying lattice reduction (BKZ preferred)...")
     lattice_cands = lattice_reduction(filtered, ORDER, use_bkz=FPYLLL_AVAILABLE)
 
     filtered.extend(multi_cands + lattice_cands)
     filtered = list(set(filtered))[:2000]
-
+    print("Applying majority vote correction...")
     candidate = bb_correction(filtered, ORDER)
 
     print("\nTrying verification...")
