@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # ===========================================================================================
-# 🐉 DRAGON_CODE_v148 — FULL REGEV MULTI-DIMENSIONAL ECDLP EDITION (NO PLACEHOLDERS) 🐉
+# 🐉 DRAGON_CODE_v148 — FULL REGEV MULTI-DIMENSIONAL ECDLP EDITION  🐉
 # ===========================================================================================
 # ALL 7 OLD METHODS (ZNE, DD, REPETITION, FLAGS, CAT, ERASURE, SURFACE) 
 # HAVE BEEN COMPLETELY DELETED — NO PROMPTS, NO DEFS, NO CALLS.
