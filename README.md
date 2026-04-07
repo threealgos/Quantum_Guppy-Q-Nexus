@@ -24,11 +24,9 @@ TODO: The Next Project is To Reveal A Supirior Version That Will Use Probabilist
 #   • Verbose comments everywhere
 # =============================================================================
 # 1. INSTALLATION (run this cell first in Google Colab)
-# =============================================================================
 
 # !pip install qiskit qiskit-ibm-runtime ecdsa pycryptodome base58
 
-# =============================================================================
 # 2. IMPORTS
 # =============================================================================
 
@@ -44,9 +42,9 @@ from ecdsa import SigningKey, SECP256k1
 import base58
 from Crypto.Hash import RIPEMD160
 from qiskit_aer import AerSimulator
-# =============================================================================
+
 # 3. HELPER FUNCTIONS
-# =============================================================================
+
 def base58_decode(s: str) -> bytes:
     """Pure Python base58 decode - no external libraries needed."""
     alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
@@ -74,7 +72,7 @@ def address_to_hash160(address: str) -> bytes:
 
 # =============================================================================
 # 4. MAIN QUANTUM CLASS
-# =============================================================================
+
 class QuantumProbabilisticRangeReducer:
     def __init__(self, bits: int, target_hash160: bytes, base: int, public_key_hex: str = None):
         self.bits = bits
