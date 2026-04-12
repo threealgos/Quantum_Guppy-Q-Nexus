@@ -1319,8 +1319,9 @@ def main():
                     fake = np.random.randint(0, 1 << bits)
                     counts[bin(fake)[2:].zfill(bits)] += 1
 
+
     # =========================================================================
-    # QISKIT PATH (token/service/DD/ZNE unchanged from v150)
+    # QISKIT PATH — VERSION-1 STYLE (Twirling + XY4 warning, no auto-disable, no ZNE)
     # =========================================================================
     if BACKEND_MODE == "QISKIT":
         print("\n=== IBM Quantum Real Hardware Setup ===")
@@ -1372,18 +1373,25 @@ def main():
                      routing_method="sabre")
             # Use qiskit_ibm_runtime SamplerV2 for real hardware
             sampler = Sampler(mode=backend)
-            # DD — XY4.  INCOMPATIBLE with dynamic circuits (if_test mid-circuit measure).
-            # Only safe for non-dynamic builds: mode 29, pure Regev.
-            USE_DD = input("Enable Dynamical Decoupling XY4? [y/N] → ").lower() == "y"
+
+            # === WARNING + USER CHOICE (no auto-disable) ===
+            print("\n⚠️  WARNING: XY4 Dynamical Decoupling should be disabled for dynamic circuits")
+            print("   (QPE modes with if_test). It only works reliably on static circuits (Regev or mode 29).")
+            print("   You can still try to enable it — IBM will raise an error if the circuit is dynamic.")
+            USE_DD = input("Enable Dynamical Decoupling XY4 anyway? [y/N] → ").lower() == "y"
             if USE_DD:
                 sampler.options.dynamical_decoupling.enable        = True
                 sampler.options.dynamical_decoupling.sequence_type = "XY4"
-            # Pauli Twirling — Qiskit Side
+                print("✅ XY4 Dynamical Decoupling ENABLED (user choice)")
+
+            # === Pauli Twirling (always safe) ===
             USE_TWIRL = input("Enable Pauli Twirling? [y/N] → ").lower() == "y"
             if USE_TWIRL:
-                sampler.options.twirling.enable_gates            = True
-                sampler.options.twirling.enable_measure          = True
-                sampler.options.twirling.strategy                = "active-accum"
+                sampler.options.twirling.enable_gates   = True
+                sampler.options.twirling.enable_measure = True
+                sampler.options.twirling.strategy       = "active-accum"
+                print("✅ Pauli Twirling enabled")
+
         else:
             # AerSimulator path — Aer's own SamplerV2, no routing_method kwarg
             from qiskit_aer.primitives import SamplerV2 as AerSampler
@@ -1395,8 +1403,10 @@ def main():
                           backend=backend)
             # qiskit_ibm_runtime.SamplerV2 does NOT wrap AerSimulator — use Aer's own
             sampler = AerSampler()
-            USE_DD  = False   # DD is meaningless on a local simulator
-            USE_TWIRL = False # Twirling is False in Case Aer_Simulator
+            # As requested: DD and Twirling forced OFF for AerSimulator
+            USE_DD    = False
+            USE_TWIRL = False
+            print("DD and Twirling disabled for AerSimulator")
 
         isa_qc = pm.run(qc)
         print(f"Transpiled depth: {isa_qc.depth()}")
@@ -1404,7 +1414,6 @@ def main():
         print(f"Shots: {shots}")
 
         # NOTE: shots go ONLY in sampler.run() — NOT in sampler.options.default_shots.
-        # Setting default_shots alongside run(shots=) causes conflicts on real hardware.
 
         print(f"📡 Submitting job | Shots: {shots}")
         job = sampler.run([isa_qc], shots=shots)
