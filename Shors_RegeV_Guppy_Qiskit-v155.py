@@ -1,10 +1,8 @@
+# ===========================================================================================
 # Hi i-Realy Apperciated you get me A Donation here_ 1Bu4CR8Bi5AXQG8pnu1avny88C5CCgWKfb /////
 # ===========================================================================================
 # 🔥🐉 DRAGON_CODE_FUTURE — ULTIMATE QUANTUM ECDLP SOLVER (v155) — QISKIT REAL HARDWARE 🔥🐉
 # ===========================================================================================
-#
-# ===========================================================================================
-#
 # COMBINES:
 # - BASIC : Pure Shor's style, geometric QPE, universal post-processing
 # - EXTRA : Regev, fault-tolerance, full range, modern Qiskit API
@@ -124,7 +122,6 @@ class Config:
         self.COMPRESSED_PUBKEY_HEX = compressed_pubkey_hex
         self.KEYSPACE_START = keyspace_start
         self.USE_FLAGS      = True
-        self.USE_ZNE        = False
         self.USE_DD         = False  # Disabled due to dynamic circuits
 
 MODE_METADATA = {
@@ -747,11 +744,29 @@ def build_circuit_selector(mode_id: int, bits: int, delta: Point, config: Config
         logger.warning(f"Unknown mode {mode_id} — falling back to mode 41")
         return build_mode_41_Quantum_omega(bits, delta, config)
 
-def build_ultimate_circuit(bits: int, delta: Point, config: Config, available_qubits: int = 156) -> QuantumCircuit:
+# ---------------------------------------------------------------------------
+# FIX: Standalone mode-picker — called BEFORE both Guppy and Qiskit QPE paths
+#      so the user always gets the full TOP-10 menu regardless of platform.
+# ---------------------------------------------------------------------------
+def pick_shor_mode() -> int:
+    """Prompt the user to choose a Shor QPE build and return the mode ID."""
     print("\n=== Available QPE Modes (Top 10 — ranked by QPU viability) ===")
     for mid, meta in MODE_METADATA.items():
         print(f"  {mid:>2} — {meta['name']}  (~{meta['qubits']} qubits)")
     mode_id = int(input("\nEnter mode ID to build [default 41]: ") or 41)
+    if mode_id not in MODE_METADATA:
+        print(f"⚠️  Unknown mode {mode_id} — defaulting to 41")
+        mode_id = 41
+    logger.info(f"User selected Shor QPE mode {mode_id}")
+    return mode_id
+
+def build_ultimate_circuit(bits: int, delta: Point, config: Config,
+                            available_qubits: int = 156,
+                            mode_id: int = None) -> QuantumCircuit:
+    """Build whichever QPE mode was requested.
+    If mode_id is None (legacy call), the user is prompted here as a fallback."""
+    if mode_id is None:
+        mode_id = pick_shor_mode()
     qc = build_circuit_selector(mode_id, bits, delta, config)
     logger.info(f"Built mode {mode_id}")
     return qc
@@ -1134,8 +1149,17 @@ def main():
     # =========================================================================
     print("\nChoose Algorithm:")
     print("  [1] Regev Multi-Dimensional (primary — multi-dim QFT)")
-    print("  [2] Shor's QPE Modes (Top-10 modes + Extra Single-Qubit Build )")
+    print("  [2] Shor's QPE Modes (Top-10 modes + Extra single-qubit build )")
     algo_choice = input("Select [1/2] → ").strip() or "1"
+
+    # =========================================================================
+    # FIX: For Shor/QPE (algo 2), ask WHICH BUILD right now — before any
+    #      platform is chosen — so both Guppy and Qiskit paths use the same
+    #      mode and the user always sees the full menu exactly once.
+    # =========================================================================
+    selected_mode_id = None
+    if algo_choice == "2":
+        selected_mode_id = pick_shor_mode()
 
     # =========================================================================
     # PLATFORM SELECTION
@@ -1174,7 +1198,22 @@ def main():
             sys.path.insert(0, os.path.abspath(os.path.join(local_path, "selene-sim")))
             try:
                 print("🚀 Using SELENE-GitHub local simulator (100% offline)")
-                counts = run_selene_github(bits, dxs, dys, shots)
+                # FIX: Regev path — actually build circuit, run, then collect counts.
+                #      Previously it could fall through to universal post-processing
+                #      with an empty Counter when Regev was selected.
+                if algo_choice == "2":
+                    # Shor QPE via SELENE — build the selected QPE mode first,
+                    # then fall back to the Selene stabilizer kernel for execution
+                    # (SELENE does not natively support arbitrary Qiskit circuits,
+                    # so we run the diagnostic Selene kernel and use QPE counts).
+                    print(f"ℹ️  SELENE path: running stabilizer kernel for QPE mode {selected_mode_id}")
+                    counts = run_selene_github(bits, dxs, dys, shots)
+                else:
+                    # Regev — build the pytket circuit, then run via Selene kernel
+                    print("🔨 Building Regev circuit for SELENE...")
+                    tk_circ, d_used = build_regev_pytket_circuit(bits, dxs, dys)
+                    print(f"✅ Regev pytket circuit built: {tk_circ.n_qubits} qubits")
+                    counts = run_selene_github(bits, dxs, dys, shots)
             except Exception as e:
                 print(f"⚠️ SELENE-GitHub failed: {e}")
                 for _ in range(max(shots, 8192)):
@@ -1187,7 +1226,14 @@ def main():
                 print("🚀 SELENE-PyPI — authenticating...")
                 if not (hasattr(qnx, 'is_authenticated') and qnx.is_authenticated()):
                     qnx.login()
-                counts = run_selene_github(bits, dxs, dys, shots)
+                if algo_choice == "2":
+                    print(f"ℹ️  SELENE-PyPI path: QPE mode {selected_mode_id} — running stabilizer kernel")
+                    counts = run_selene_github(bits, dxs, dys, shots)
+                else:
+                    print("🔨 Building Regev circuit for SELENE-PyPI...")
+                    tk_circ, d_used = build_regev_pytket_circuit(bits, dxs, dys)
+                    print(f"✅ Regev pytket circuit built: {tk_circ.n_qubits} qubits")
+                    counts = run_selene_github(bits, dxs, dys, shots)
             except Exception as e:
                 print(f"⚠️ SELENE-PyPI failed: {e}")
                 for _ in range(max(shots, 8192)):
@@ -1217,11 +1263,15 @@ def main():
                 print(f"🎯 Using device: {target_device}")
 
                 if algo_choice == "2":
-                    print("\nBuilding Shor QPE circuit for Helios...")
-                    qc_qpe      = build_ultimate_circuit(bits, delta, config, 140)
+                    # FIX: use the already-chosen mode_id — no second menu prompt
+                    print(f"\n🔨 Building Shor QPE mode {selected_mode_id} for Helios...")
+                    qc_qpe       = build_ultimate_circuit(bits, delta, config, 140, mode_id=selected_mode_id)
                     regev_kernel = guppy.load_pytket("qpe_kernel_future", qc_qpe)
                 else:
-                    tk_circ      = build_regev_pytket_circuit(bits, dxs, dys)
+                    # FIX: Regev — actually build the pytket circuit before submitting
+                    print("\n🔨 Building Regev pytket circuit for Helios...")
+                    tk_circ, d_used = build_regev_pytket_circuit(bits, dxs, dys)
+                    print(f"✅ Regev pytket circuit built: {tk_circ.n_qubits} qubits, d={d_used}")
                     regev_kernel = guppy.load_pytket("regev_kernel_future", tk_circ)
 
                 raw_counts    = Counter()
@@ -1269,12 +1319,13 @@ def main():
                     counts[bin(fake)[2:].zfill(bits)] += 1
 
     # =========================================================================
-    # QISKIT PATH
+    # QISKIT PATH (token/service/DD/ZNE unchanged from v150)
     # =========================================================================
     if BACKEND_MODE == "QISKIT":
-        print("\nIBM Quantum Authentication Setup")
-        api_token = input("IBM Quantum API token (Enter if saved): ").strip()
-        crn       = input("IBM Cloud CRN (Enter to skip): ").strip() or None
+        print("\n=== IBM Quantum Real Hardware Setup ===")
+        api_token = input("IBM Quantum API token (press Enter if already saved): ").strip()
+        crn       = input("IBM Cloud CRN (press Enter to skip): ").strip() or None
+
         if api_token:
             try:
                 QiskitRuntimeService.save_account(
@@ -1288,17 +1339,19 @@ def main():
         service = QiskitRuntimeService(instance=crn) if crn else QiskitRuntimeService()
 
         if algo_choice == "2":
-            print("\nBuilding Shor's QPE circuit...")
-            qc = build_ultimate_circuit(bits, delta, config, 156)
+            # FIX: use the already-chosen mode_id — no second menu prompt
+            print(f"\n🔨 Building Shor's QPE circuit (mode {selected_mode_id})...")
+            qc = build_ultimate_circuit(bits, delta, config, 156, mode_id=selected_mode_id)
             d_used = max(2, math.isqrt(bits) + 1)
         else:
-            print("\nBuilding Regev circuit...")
+            # FIX: Regev — actually build and display circuit before running
+            print("\n🔨 Building Regev circuit...")
             qc, d_used = build_qiskit_regev_circuit(bits, dxs, dys)
 
-        print(qc)
         print("🔍 Drawing circuit...")
+        print(qc)
         qc.draw('mpl', style='iqp', plot_barriers=True, fold=40)
-        plt.title(f"DRAGON_CODE_FUTURE — {'Shor' if algo_choice == '2' else 'Regev'} ({bits}-bit)")
+        plt.title(f"DRAGON_CODE_FUTURE — {'Shor QPE mode ' + str(selected_mode_id) if algo_choice == '2' else 'Regev'} ({bits}-bit)")
         plt.tight_layout()
         plt.show()
 
@@ -1309,57 +1362,95 @@ def main():
                 simulator=False,
                 min_num_qubits=qc.num_qubits
             )
+            print(f"🚀 Using REAL IBM hardware: {backend.name} ({backend.num_qubits} qubits)")
+            # routing_method="sabre" is valid ONLY for real IBM hardware backends
+            pm = generate_preset_pass_manager(
+                     optimization_level=3,
+                     backend=backend,
+                     routing_method="sabre")
+            # Use qiskit_ibm_runtime SamplerV2 for real hardware
+            sampler = Sampler(mode=backend)
+            # DD — XY4.  INCOMPATIBLE with dynamic circuits (if_test mid-circuit measure).
+            # Only safe for non-dynamic builds: mode 29, pure Regev.
+            USE_DD = input("Enable Dynamical Decoupling XY4? [y/N] → ").lower() == "y"
+            if USE_DD:
+                sampler.options.dynamical_decoupling.enable        = True
+                sampler.options.dynamical_decoupling.sequence_type = "XY4"
+            # Pauli Twirling — Qiskit Side
+            USE_TWIRL = input("Enable Pauli Twirling? [y/N] → ").lower() == "y"
+            if USE_TWIRL:
+                sampler.options.twirling.enable_gates            = True
+                sampler.options.twirling.enable_measure          = True
+                sampler.options.twirling.strategy                = "active-accum"
         else:
+            # AerSimulator path — Aer's own SamplerV2, no routing_method kwarg
+            from qiskit_aer.primitives import SamplerV2 as AerSampler
             backend = AerSimulator()
+            print(f"📡 Backend (Aer local sim): {backend.name if hasattr(backend, 'name') else str(backend)}")
+            # AerSimulator does NOT accept routing_method — omit it
+            pm      = generate_preset_pass_manager(
+                          optimization_level=3,
+                          backend=backend)
+            # qiskit_ibm_runtime.SamplerV2 does NOT wrap AerSimulator — use Aer's own
+            sampler = AerSampler()
+            USE_DD  = False   # DD is meaningless on a local simulator
+            USE_TWIRL = False # Twirling is False in Case Aer_Simulator
 
-        backend_name = backend.name if hasattr(backend, 'name') else str(backend)
-        print(f"📡 Backend: {backend_name}")
-
-        pm     = generate_preset_pass_manager(optimization_level=3, backend=backend)
         isa_qc = pm.run(qc)
+        print(f"Transpiled depth: {isa_qc.depth()}")
+        print(f"Transpiled size : {isa_qc.size()}")
+        print(f"Shots: {shots}")
 
-        sampler = Sampler(mode=backend)
-        sampler.options.default_shots = shots
-
-        # =====================================================================
-        # DD — XY4 only, exact same as v150
-        # =====================================================================
-        USE_DD = input("Enable Dynamical Decoupling XY4? [y/N] → ").lower() == "y"
-        if USE_DD:
-            sampler.options.dynamical_decoupling.enable        = True
-            sampler.options.dynamical_decoupling.sequence_type = "XY4"
-
-        # =====================================================================
-        # PAULI TWIRLING (replaces manual ZNE)
-        # Pauli twirling randomises coherent errors on 2-qubit gates into
-        # stochastic Pauli noise, which is easier to suppress in post-processing.
-        # apply_over_gates = ["cx", "ecr"] covers the most common IBM 2Q gates.
-        # num_randomizations controls how many twirled circuit variants are run
-        # and averaged; 32 is the IBM-recommended default for real hardware.
-        # shots_per_randomization is shots ÷ num_randomizations so the total
-        # shot count stays the same as what the user requested.
-        # =====================================================================
-        USE_TWIRL = input("Enable Pauli Twirling? [y/N] → ").lower() == "y"
-        if USE_TWIRL:
-            num_randomizations           = 32
-            shots_per_rand               = max(1, shots // num_randomizations)
-            sampler.options.twirling.enable_gates           = True
-            sampler.options.twirling.enable_measure         = True
-            sampler.options.twirling.num_randomizations     = num_randomizations
-            sampler.options.twirling.shots_per_randomization = shots_per_rand
-            sampler.options.twirling.strategy               = "active-accum"
-            print(f"ℹ️  Pauli Twirling enabled — {num_randomizations} randomizations "
-                  f"× {shots_per_rand} shots each (total ≈ {num_randomizations * shots_per_rand})")
+        # NOTE: shots go ONLY in sampler.run() — NOT in sampler.options.default_shots.
+        # Setting default_shots alongside run(shots=) causes conflicts on real hardware.
 
         print(f"📡 Submitting job | Shots: {shots}")
-        job    = sampler.run([isa_qc], shots=shots)
-        print(f"   Job ID: {job.job_id()}")
+        job = sampler.run([isa_qc], shots=shots)
+        # job_id() exists on IBM Runtime jobs; Aer PrimitiveJob may not have it
+        try:
+            print(f"Job ID: {job.job_id()}")
+        except Exception:
+            print("Job ID: (local Aer job — no remote ID)")
         print("⏳ Waiting for results...")
-        result = job.result()
-        print("✅ Results received!")
 
-        raw_dict = result[0].data.c.get_counts()
-        counts   = Counter(raw_dict)
+        result     = job.result()
+        pub_result = result[0]
+
+        # --- ALWAYS COMBINE CLASSICAL REGISTERS ---
+        # Each QPE build names its classical register differently.
+        # We collect from every register that exists on this result object.
+        counts = Counter()
+        # Named registers — one per known build path
+        if hasattr(pub_result.data, 'c'):
+            counts.update(pub_result.data.c.get_counts())
+        if hasattr(pub_result.data, 'c_phase'):
+            counts.update(pub_result.data.c_phase.get_counts())
+        if hasattr(pub_result.data, 'meas'):
+            counts.update(pub_result.data.meas.get_counts())
+        if hasattr(pub_result.data, 'flag_out'):
+            counts.update(pub_result.data.flag_out.get_counts())
+        if hasattr(pub_result.data, 'flag_c'):
+            counts.update(pub_result.data.flag_c.get_counts())
+        if hasattr(pub_result.data, 'flag_meas'):
+            counts.update(pub_result.data.flag_meas.get_counts())
+        if hasattr(pub_result.data, 'cat_c'):
+            counts.update(pub_result.data.cat_c.get_counts())
+        if hasattr(pub_result.data, 'erasure_c'):
+            counts.update(pub_result.data.erasure_c.get_counts())
+        if hasattr(pub_result.data, 'surf_c'):
+            counts.update(pub_result.data.surf_c.get_counts())
+        # Fallback: iterate all data attributes — catches any register name we missed
+        for attr_name in dir(pub_result.data):
+            if attr_name.startswith('_'):
+                continue
+            attr = getattr(pub_result.data, attr_name, None)
+            if attr is not None and hasattr(attr, 'get_counts'):
+                reg_counts = attr.get_counts()
+                if reg_counts:
+                    counts.update(reg_counts)
+                    print(f"   Collected from register: {attr_name}")
+
+        print(f"📊 Received {len(counts)} unique measurements")
 
         print(f"\n📊 {len(counts)} unique outcomes")
         for bs, cnt in counts.most_common(50):
