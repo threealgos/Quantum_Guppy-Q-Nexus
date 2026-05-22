@@ -1,5 +1,5 @@
 HERE IS THE RIGHT STEPS GUYS !!!! 
-<img width="687" height="431" alt="Basic Fast Configs" src="[https://raw.githubusercontent.com/threealgos/Quantum_Guppy-Q-Nexus/refs/heads/main/after-theStorm.png](https://raw.githubusercontent.com/threealgos/Quantum_Guppy-Q-Nexus/refs/heads/main/Config-Steps.png)" />
+<img width="687" height="431" alt="Basic Fast Configs" src="https://raw.githubusercontent.com/threealgos/Quantum_Guppy-Q-Nexus/refs/heads/main/Config-Steps.png" />
 > python3 P11-Solver-fixed-2.py
 Choose:
   [  c]  Custom
